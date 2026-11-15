@@ -1932,7 +1932,7 @@ mod tests {
         let y = cells.center().y;
         // A press on the unselected keyframe at frame 3 drags it two frames later.
         tl_drag(&ctx, &mut app, pos2(x(3), y), pos2(x(5), y), Modifiers::NONE);
-        assert_eq!(spans(&app, lid), vec![(0, 5), (5, 3)], "the keyframe moved with the drag");
+        assert_eq!(spans(&app, lid), vec![(0, 5), (5, 5)], "the keyframe moved with the drag, its span keeping its length");
         assert_eq!(app.frame_sel.map(|s| s.frames()), Some((5, 5)), "the selection followed the key");
         app.run("edit.undo", json!({}));
         assert_eq!(spans(&app, lid), vec![(0, 3), (3, 5)], "one undo puts it back");
