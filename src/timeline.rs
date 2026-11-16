@@ -1059,14 +1059,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 app.frame_sel = Some(sel);
                 app.tl_drag = TlDrag::Move { grab: f, by: 0, grab_row: i, rows_by: 0 };
                 select_here(app, f);
-            } else if layer.keyframe_starting_at(f).is_some()
-                && !shift
-                && (whole_motion_span(layer, f).is_none() || !ui.input(|inp| inp.modifiers.command))
-            {
+            } else if layer.keyframe_starting_at(f).is_some() && !shift && !ui.input(|inp| inp.modifiers.command) {
                 // A press on a keyframe grabs it at once, as a click would select it: a
                 // plain drag moves the key instead of starting a range selection (#344).
-                // A press inside a held span still selects a range, and Ctrl inside a
-                // motion span (or Shift) keeps the range path above.
+                // A press inside a held span still selects a range, and Ctrl (or Shift)
+                // keeps the range path above.
                 app.frame_sel = Some(FrameSel::cell(layer.id, f));
                 app.tl_drag = TlDrag::Move { grab: f, by: 0, grab_row: i, rows_by: 0 };
                 select_here(app, f);
@@ -1936,5 +1933,26 @@ mod tests {
         assert_eq!(app.frame_sel.map(|s| s.frames()), Some((5, 5)), "the selection followed the key");
         app.run("edit.undo", json!({}));
         assert_eq!(spans(&app, lid), vec![(0, 3), (3, 5)], "one undo puts it back");
+    }
+
+    #[test]
+    fn ctrl_drag_from_an_unselected_keyframe_selects_a_range() {
+        let ctx = egui::Context::default();
+        let mut app = App::with_context(&ctx, anicraft_engine::Session::default(), Some(std::path::PathBuf::from("unused.png")));
+        app.show_panel(crate::dock::Panel::Timeline);
+        let lid = app.s.layer;
+        app.run("timeline.insert_frame", json!({"layer": lid.0, "frame": 0, "count": 7}));
+        app.run("timeline.insert_keyframe", json!({"layer": lid.0, "frame": 3}));
+        assert_eq!(spans(&app, lid), vec![(0, 3), (3, 5)]);
+        app.frame_sel = None;
+        tl_settle(&ctx, &mut app);
+        // The active row's cells, as the timeline drew them.
+        let Some((cells, x0, cell_w, scroll)) = ctx.data(|d| d.get_temp::<(Rect, f32, f32, f32)>(egui::Id::new("tl_geometry"))) else { panic!("the timeline drew") };
+        let x = |f: u32| x0 + (f as f32 - scroll) * cell_w + cell_w * 0.5;
+        let y = cells.center().y;
+        // Ctrl held: a drag from the unselected keyframe at frame 3 selects a range.
+        tl_drag(&ctx, &mut app, pos2(x(3), y), pos2(x(5), y), Modifiers::COMMAND);
+        assert_eq!(spans(&app, lid), vec![(0, 3), (3, 5)], "Ctrl-drag selects a range, leaving the keyframes where they are");
+        assert_eq!(app.frame_sel.map(|s| s.frames()), Some((3, 5)), "the range covers the dragged frames");
     }
 }
